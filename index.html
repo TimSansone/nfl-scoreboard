@@ -70,7 +70,7 @@
   const teamMeta=id=>(window.ESPN_TEAMS||[]).find(t=>String(t.id)===String(id))||{};
   const img=t=>`<img src="${t.logoUrl||logo(t.logo)}" alt="${t.name} logo" onerror="this.style.display='none'">`;
   const dateKey=d=>`${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
-  const scoreValue=v=>v===undefined||v===null||v===''?null:(Number.isNaN(Number(v))?v:Number(v));
+  const scoreValue=v=>{if(v===undefined||v===null||v==='')return null;if(typeof v==='object')v=v.displayValue??v.value??v.score??v.total??null;if(v===undefined||v===null||v==='')return null;return Number.isNaN(Number(v))?String(v):Number(v)};
   function setSource(state,text){document.querySelector('#count').innerHTML=`<span class="source ${state}"><i class="source-dot"></i>${text}</span>`}
   function stopAutoRefresh(){clearTimeout(refreshTimer);clearInterval(countdownTimer);nextRefreshAt=0}
   function updateCountdown(){const el=document.querySelector('#autoCountdown');if(!el)return;const seconds=Math.max(0,Math.ceil((nextRefreshAt-Date.now())/1000));el.textContent=`Auto-refresh in ${seconds}s`}
@@ -80,13 +80,13 @@
   }
   function mapEvent(e){
     const c=e.competitions?.[0]||{}, competitors=c.competitors||[], awayRaw=competitors.find(x=>x.homeAway==='away')||competitors[0]||{}, homeRaw=competitors.find(x=>x.homeAway==='home')||competitors[1]||{}, away=mapTeam(awayRaw), home=mapTeam(homeRaw);
-    const state=e.status?.type?.state, completed=e.status?.type?.completed, status=completed?'final':state==='in'?'live':'upcoming';
+    const eventStatus=e.status||c.status||{},state=eventStatus.type?.state,completed=eventStatus.type?.completed,status=completed?'final':state==='in'?'live':'upcoming';
     const q=t=>{const a=(t.linescores||[]).slice(0,4).map(x=>scoreValue(x.displayValue??x.value)??'–');while(a.length<4)a.push('–');return a};
     const divisions=[away.division,home.division].filter(Boolean).filter((v,i,a)=>a.indexOf(v)===i),confs=[away.conference,home.conference,...divisions].filter(Boolean).filter((v,i,a)=>a.indexOf(v)===i);
     const possessionId=String(c.situation?.possession||''),awayId=String(awayRaw.id||awayRaw.team?.id||away.id),homeId=String(homeRaw.id||homeRaw.team?.id||home.id),possession=possessionId===awayId?away.abbr:possessionId===homeId?home.abbr:'';
-    const situation=c.situation?.downDistanceText?[possession,c.situation.downDistanceText].filter(Boolean).join(' ball • '):(e.status?.type?.detail||e.status?.type?.description||'Scheduled');
+    const situation=c.situation?.downDistanceText?[possession,c.situation.downDistanceText].filter(Boolean).join(' ball • '):(eventStatus.type?.detail||eventStatus.type?.description||'Scheduled');
     const city=[c.venue?.address?.city,c.venue?.address?.state].filter(Boolean).join(', ')||'Location TBA';
-    return {id:String(e.id),date:e.date?new Date(e.date):null,status,clock:e.status?.type?.shortDetail||e.status?.type?.detail||'Scheduled',network:c.broadcasts?.flatMap(b=>b.names||[])[0]||c.geoBroadcasts?.[0]?.media?.shortName||'NFL',conf:confs.length?confs:['NFL'],divisions,venue:c.venue?.fullName||'Venue TBA',city,away,home,quarters:[q(awayRaw),q(homeRaw)],possession,situation,downDistance:c.situation?.downDistanceText||'',fieldPosition:c.situation?.possessionText||c.situation?.yardLine||'',drive:c.situation?.lastPlay?.text||c.notes?.[0]?.headline||e.status?.type?.description||'Game information will update as it becomes available.'};
+    return {id:String(e.id),date:e.date?new Date(e.date):c.date?new Date(c.date):null,status,clock:eventStatus.type?.shortDetail||eventStatus.type?.detail||'Scheduled',network:c.broadcasts?.flatMap(b=>b.names||[])[0]||c.geoBroadcasts?.[0]?.media?.shortName||'NFL',conf:confs.length?confs:['NFL'],divisions,venue:c.venue?.fullName||'Venue TBA',city,away,home,quarters:[q(awayRaw),q(homeRaw)],possession,situation,downDistance:c.situation?.downDistanceText||'',fieldPosition:c.situation?.possessionText||c.situation?.yardLine||'',drive:c.situation?.lastPlay?.text||c.notes?.[0]?.headline||eventStatus.type?.description||'Game information will update as it becomes available.'};
   }
   async function loadScores({quiet=false}={}){
     viewMode='scoreboard'; selectedTeam=null; syncMode();
